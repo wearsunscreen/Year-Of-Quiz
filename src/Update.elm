@@ -1,70 +1,35 @@
-module Main exposing (..)
+module Update exposing (..)
 
 import Array exposing (Array, get)
-import Html exposing (..)
-import Html.Events exposing (..)
-import Html.Attributes exposing (disabled, style)
-import Random exposing (Seed, initialSeed, int, maxInt, step)
+import Model exposing (..)
+import Random exposing (Seed, initialSeed)
+import String exposing (fromInt)
+import Task exposing (Task, perform)
+import Time exposing (now, posixToMillis)
 
 
-main =
-    Html.program
-        { init = init
-        , view = view
-        , update = update
-        , subscriptions = subscriptions
-        }
+init : () -> ( Model, Cmd Msg )
+init _ =
+    ( Model Easy [] False Nothing (Random.initialSeed 0) Nothing 0 False, Cmd.none )
 
 
+subs : Model -> Sub Msg
+subs model =
+    Sub.none
 
--- MODEL
-
-
-type Difficulty
-    = Easy
-    | Hard
-
-
-type alias Model =
-    { difficulty : Difficulty
-    , facts : List Datum
-    , isHidden : Bool
-    , seed : Seed
-    , sort : Int
-    , started : Bool
-    }
-
-
-init : ( Model, Cmd Msg )
-init =
-    ( Model Easy [] False (Random.initialSeed 0) 0 False, Cmd.none )
-
-
-
--- UPDATE
-
-
-type Msg
-    = Roll
-    | Start
-    | FirstRoll Int
-    | Reveal
-    | ToggleDifficulty
-
-
-(??) : Maybe a -> a -> a
-(??) maybe default =
+justOrDefault : Maybe a -> a -> a
+justOrDefault maybe default =
     Maybe.withDefault default maybe
 
 
 getDatum : Int -> Datum
 getDatum i =
-    Array.get i fullYearOfData ?? ( NoCategory, 0, "Found a bug" )
+    justOrDefault (Array.get i fullYearOfData)  ( NoCategory, 0, "Found a bug" )
 
-
+{- todo test this, -}
 fishman20PRNG : Int -> Int
 fishman20PRNG seed =
-    (seed * 48271 % (2 ^ 31)) // 2
+    (seed * (modBy (2 ^ 31) 48271)) // 2
 
 
 prng_ : Seed -> Int -> ( Int, Seed )
@@ -73,7 +38,7 @@ prng_ seed range =
         s =
             fishman20PRNG 12345
     in
-        ( s % range, Random.initialSeed s )
+        ( modBy range s, Random.initialSeed s )
 
 
 prng : Seed -> Int -> ( Int, Seed )
@@ -91,7 +56,7 @@ getFacts seed =
             getRandomElement seed firstFactArray
 
         ( c1, y1, s1 ) =
-            firstFact ?? ( NoCategory, 0, "Can't find data" )
+            justOrDefault firstFact ( NoCategory, 0, "Can't find data" )
 
         sameYearArray =
             Array.filter (\( c, y, s ) -> y == y1 && s /= s1 && c1 /= c && c /= NoCategory) fullYearOfData
@@ -100,7 +65,7 @@ getFacts seed =
             getRandomElement seed1 (Debug.log "sameYearArray" sameYearArray)
 
         ( c2, y2, s2 ) =
-            maybe ?? ( NoCategory, 0, ("Could not find two events in year " ++ toString y1) )
+            justOrDefault maybe ( NoCategory, 0, ("Could not find two events in year " ++ fromInt y1) )
 
         dxYearArray =
             Array.filter (\( c, y, s ) -> (y < y1 - 10 || y > y1 + 10) && c /= c1 && c /= c2 && c /= NoCategory) fullYearOfData
@@ -109,7 +74,7 @@ getFacts seed =
             getRandomElement seed2 dxYearArray
 
         ( c3, y3, s3 ) =
-            maybe1 ?? ( NoCategory, 0, ("Could not find two events in year " ++ toString y1) )
+            justOrDefault maybe1 ( NoCategory, 0, ("Could not find two events in year " ++ fromInt y1) )
 
         dxYearArray2 =
             Array.filter (\( c, y, s ) -> (y < y3 - 10 || y > y3 + 10) && c /= c3) dxYearArray
@@ -118,7 +83,7 @@ getFacts seed =
             getRandomElement seed3 dxYearArray2
 
         dx =
-            maybe2 ?? ( NoCategory, 0, ("" ++ toString y1) )
+            justOrDefault maybe2 ( NoCategory, 0, ("" ++ fromInt y1) )
     in
         ( seed3, [ ( c1, y1, s1 ), ( c2, y2, s2 ), ( c3, y3, s3 ), dx ] )
 
@@ -198,114 +163,16 @@ update msg model =
             , Cmd.none
             )
 
+        CloseWelcomeScreen ->
+            ( model, Task.perform StartApp Time.now )
 
-
--- SUBSCRIPTIONS
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.none
-
-
-
--- VIEW
-
-
-shuffle : Seed -> List a -> List a
-shuffle seed list =
-    case list of
-        [] ->
-            []
-
-        x :: xs ->
-            let
-                ( b, seed1 ) =
-                    Random.step Random.bool seed
-            in
-                if b then
-                    x :: shuffle seed1 xs
-                else
-                    shuffle seed1 xs ++ [ x ]
-
-
-view : Model -> Html Msg
-view model =
-    let
-        ( c, matchYear, e ) =
-            List.head model.facts ?? ( NoCategory, 0, "This never should happen!" )
-    in
-        div
-            [ style
-                [ ( "position", "absolute" )
-                , ( "font-size", "100%" )
-                , ( "top", "50px" )
-                , ( "left", "100px" )
-                ]
-            ]
-            (if model.started then
-                [ h1 [ style [ ( "font-size", "300%" ) ] ] [ text "Which two events happened in the same year?" ]
-                , button [ onClick Roll, disabled (model.isHidden) ] [ text "Roll" ]
-                , button [ onClick Reveal, disabled (not model.isHidden) ] [ text "Show Years" ]
-                , button [ onClick ToggleDifficulty ]
-                    [ text
-                        (if model.difficulty == Easy then
-                            "Easy"
-                         else
-                            "Hard"
-                        )
-                    ]
-                ]
-                    ++ List.concatMap
-                        (viewDatum matchYear model.isHidden)
-                        (shuffle model.seed model.facts)
-             else
-                [ button [ onClick Start ] [ text "Start" ]
-                ]
+        StartApp time ->
+            ( { model
+                | startTime = Just time
+                , randomSeed = Just (initialSeed (posixToMillis time))
+              }
+            , Cmd.none
             )
-
-
-viewDatum : Int -> Bool -> Datum -> List (Html Msg)
-viewDatum matchYear isHidden ( category, year, event ) =
-    let
-        color =
-            if matchYear == year && not isHidden then
-                [ style [ ( "background-color", "Bisque" ) ] ]
-            else
-                []
-    in
-        [ p [] []
-        , h2 []
-            [ text
-                (if isHidden then
-                    "----"
-                 else
-                    toString (year)
-                )
-            ]
-        , h1 color
-            [ text (" " ++ Debug.log "event" event)
-            ]
-        ]
-
-
-type Category
-    = Building
-    | FIFA
-    | Hurricane
-    | Movie
-    | Music
-    | NoCategory
-    | Olympics
-    | Politics
-    | Sports
-    | Stage
-    | Tv
-
-
-type alias Datum =
-    ( Category, Int, String )
-
 
 fullYearOfData =
     Array.fromList
