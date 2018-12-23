@@ -1,4 +1,4 @@
-module View exposing (..)
+module View exposing (view, viewDatum, viewStuff, viewWelcome)
 
 import Browser exposing (Document)
 import Html exposing (..)
@@ -8,42 +8,48 @@ import Model exposing (..)
 import Random exposing (Generator, Seed, int, map, maxInt, minInt, step)
 import String exposing (fromInt)
 import Time exposing (posixToMillis)
-import Update exposing (justOrDefault)
+import Update exposing (getSeed, justOrDefault)
 
-{- stole this from Random.elm, don't know why I couldn't import it -}
-bool : Generator Bool
-bool =
-  Random.map ((==) 1) (int 0 1)
 
-shuffle : Seed -> List a -> List a
-shuffle seed list =
-    case list of
-        [] ->
-            []
+printDatum : Int -> Bool -> Datum -> List (Html Msg)
+printDatum matchYear isHidden ( category, year, event ) =
+    [ p []
+        [ text
+            (if isHidden then
+                "----"
 
-        x :: xs ->
-            let
-                ( b, seed1 ) =
-                    Random.step bool seed
-            in
-                if b then
-                    x :: shuffle seed1 xs
-                else
-                    shuffle seed1 xs ++ [ x ]
+             else
+                fromInt year
+            )
+        , text (" " ++ event)
+        ]
+    ]
+
 
 view : Model -> Document Msg
 view model =
-    let 
-        b =  case model.startTime of
-            Nothing ->
-                viewWelcome model
+    let
+        b =
+            case model.mode of
+                PlayGame ->
+                    viewStuff model
 
-            Just t ->
-                viewStuff model
-    in 
+                ShowManyAnswers ->
+                    viewMany model
+
+                ShowManyQuestions ->
+                    viewMany model
+
+                StartGame ->
+                    viewStuff model
+
+                WelcomeScreen ->
+                    viewWelcome model
+    in
     { title = "Elm App Template"
-    , body =  [b]
+    , body = [ b ]
     }
+
 
 viewWelcome : Model -> Html Msg
 viewWelcome model =
@@ -53,38 +59,62 @@ viewWelcome model =
         ]
 
 
+viewMany : Model -> Html Msg
+viewMany model =
+    let
+        ( c, matchYear, e ) =
+            justOrDefault (List.head model.facts) ( NoCategory, 0, "This never should happen!" )
+    in
+    div
+        [ style "font-size" "10"
+        , style "top" "50px"
+        , style "left" "20px"
+        ]
+        ([ button [ onClick PrintQuiz ] [ text "More" ]
+         , button [ onClick PrintAnswers ] [ text "Show Years" ]
+         , p [] [ text "Which two events happened in the same year?" ]
+         ]
+            ++ List.concatMap
+                (printDatum matchYear model.isHidden)
+                model.facts
+        )
+
+
 viewStuff : Model -> Html Msg
 viewStuff model =
     let
         ( c, matchYear, e ) =
             justOrDefault (List.head model.facts) ( NoCategory, 0, "This never should happen!" )
     in
-        div
-                [ style "position" "absolute"
-                , style "font-size" "100"
-                , style "top" "50px"
-                , style "left" "100px"
+    div
+        [ style "position" "absolute"
+        , style "font-size" "100"
+        , style "top" "50px"
+        , style "left" "100px"
+        ]
+        (if model.started then
+            [ h1 [ style "font-size" "300%" ] [ text "Which two events happened in the same year?" ]
+            , button [ onClick Roll, disabled model.isHidden ] [ text "Roll" ]
+            , button [ onClick Reveal, disabled (not model.isHidden) ] [ text "Show Years" ]
+            , button [ onClick ToggleDifficulty ]
+                [ text
+                    (if model.difficulty == Easy then
+                        "Easy"
+
+                     else
+                        "Hard"
+                    )
                 ]
-            (if model.started then
-                [ h1 [ style "font-size" "300%" ] [ text "Which two events happened in the same year?" ]
-                , button [ onClick Roll, disabled (model.isHidden) ] [ text "Roll" ]
-                , button [ onClick Reveal, disabled (not model.isHidden) ] [ text "Show Years" ]
-                , button [ onClick ToggleDifficulty ]
-                    [ text
-                        (if model.difficulty == Easy then
-                            "Easy"
-                         else
-                            "Hard"
-                        )
-                    ]
-                ]
-                    ++ List.concatMap
-                        (viewDatum matchYear model.isHidden)
-                        (shuffle model.seed model.facts)
-             else
-                [ button [ onClick Start ] [ text "Start" ]
-                ]
-            )
+            ]
+                ++ List.concatMap
+                    (viewDatum matchYear model.isHidden)
+                    (shuffle (getSeed model) model.facts)
+
+         else
+            [ button [ onClick Start ] [ text "Start" ]
+            , button [ onClick PrintQuiz ] [ text "PrintQuiz" ]
+            ]
+        )
 
 
 viewDatum : Int -> Bool -> Datum -> List (Html Msg)
@@ -93,19 +123,21 @@ viewDatum matchYear isHidden ( category, year, event ) =
         color =
             if matchYear == year && not isHidden then
                 [ style "background-color" "Bisque" ]
+
             else
                 []
     in
-        [ p [] []
-        , h2 []
-            [ text
-                (if isHidden then
-                    "----"
-                 else
-                    fromInt (year)
-                )
-            ]
-        , h1 color
-            [ text (" " ++ Debug.log "event" event)
-            ]
+    [ p [] []
+    , h2 []
+        [ text
+            (if isHidden then
+                "----"
+
+             else
+                fromInt year
+            )
         ]
+    , h1 color
+        [ text (" " ++ Debug.log "event" event)
+        ]
+    ]

@@ -1,6 +1,7 @@
-module Update exposing (..)
+module Update exposing (fullYearOfData, getDatum, getFacts, getRandomElement, getSeed, init, justOrDefault, subs, update)
 
 import Array exposing (Array, get)
+import List exposing (append)
 import Model exposing (..)
 import Random exposing (Seed, initialSeed)
 import String exposing (fromInt)
@@ -10,35 +11,26 @@ import Time exposing (now, posixToMillis)
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( Model Easy [] False Nothing (Random.initialSeed 0) Nothing 0 False, Cmd.none )
-
-
-subs : Model -> Sub Msg
-subs model =
-    Sub.none
-
-justOrDefault : Maybe a -> a -> a
-justOrDefault maybe default =
-    Maybe.withDefault default maybe
+    ( Model Easy [] False StartGame (Random.initialSeed 0) Nothing Nothing 0 False, Cmd.none )
 
 
 getDatum : Int -> Datum
 getDatum i =
-    justOrDefault (Array.get i fullYearOfData)  ( NoCategory, 0, "Found a bug" )
-
-{- todo test this, -}
-fishman20PRNG : Int -> Int
-fishman20PRNG seed =
-    (seed * (modBy (2 ^ 31) 48271)) // 2
+    justOrDefault (Array.get i fullYearOfData) ( NoCategory, 0, "Found a bug" )
 
 
+{-| alternate implementation can be used if we want to have control over randon number generation
+-}
 prng_ : Seed -> Int -> ( Int, Seed )
 prng_ seed range =
     let
         s =
             fishman20PRNG 12345
+
+        fishman20PRNG ss =
+            (ss * modBy (2 ^ 31) 48271) // 2
     in
-        ( modBy range s, Random.initialSeed s )
+    ( modBy range s, Random.initialSeed s )
 
 
 prng : Seed -> Int -> ( Int, Seed )
@@ -65,7 +57,7 @@ getFacts seed =
             getRandomElement seed1 (Debug.log "sameYearArray" sameYearArray)
 
         ( c2, y2, s2 ) =
-            justOrDefault maybe ( NoCategory, 0, ("Could not find two events in year " ++ fromInt y1) )
+            justOrDefault maybe ( NoCategory, 0, "Could not find two events in year " ++ fromInt y1 )
 
         dxYearArray =
             Array.filter (\( c, y, s ) -> (y < y1 - 10 || y > y1 + 10) && c /= c1 && c /= c2 && c /= NoCategory) fullYearOfData
@@ -74,7 +66,7 @@ getFacts seed =
             getRandomElement seed2 dxYearArray
 
         ( c3, y3, s3 ) =
-            justOrDefault maybe1 ( NoCategory, 0, ("Could not find two events in year " ++ fromInt y1) )
+            justOrDefault maybe1 ( NoCategory, 0, "Could not find two events in year " ++ fromInt y1 )
 
         dxYearArray2 =
             Array.filter (\( c, y, s ) -> (y < y3 - 10 || y > y3 + 10) && c /= c3) dxYearArray
@@ -83,18 +75,49 @@ getFacts seed =
             getRandomElement seed3 dxYearArray2
 
         dx =
-            justOrDefault maybe2 ( NoCategory, 0, ("" ++ fromInt y1) )
+            justOrDefault maybe2 ( NoCategory, 0, "" ++ fromInt y1 )
     in
-        ( seed3, [ ( c1, y1, s1 ), ( c2, y2, s2 ), ( c3, y3, s3 ), dx ] )
+    ( seed3, [ ( c1, y1, s1 ), ( c2, y2, s2 ), ( c3, y3, s3 ), dx ] )
+
+
+getManyFacts : Int -> ( Seed, List Datum ) -> ( Seed, List Datum )
+getManyFacts n ( seed, data ) =
+    let
+        ( newSeed, newDatum ) =
+            getFacts seed
+
+        shuffled =
+            shuffle seed newDatum
+    in
+    if n < 1 then
+        ( newSeed, data )
+
+    else
+        getManyFacts (n - 1) ( newSeed, append data shuffled )
 
 
 getRandomElement : Seed -> Array a -> ( Maybe a, Seed )
 getRandomElement seed array =
     let
         ( i, seed1 ) =
-            prng seed ((Array.length array) - 1)
+            prng seed (Array.length array - 1)
     in
-        ( Array.get i array, seed1 )
+    ( Array.get i array, seed1 )
+
+
+getSeed : Model -> Seed
+getSeed model =
+    justOrDefault model.randomSeed (Random.initialSeed 0)
+
+
+justOrDefault : Maybe a -> a -> a
+justOrDefault maybe default =
+    Maybe.withDefault default maybe
+
+
+subs : Model -> Sub Msg
+subs model =
+    Sub.none
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -103,47 +126,86 @@ update msg model =
         Start ->
             ( { model
                 | isHidden = True
+                , mode = StartGame
                 , started = True
               }
             , Random.generate FirstRoll (Random.int 0 Random.maxInt)
             )
 
+        PrintAnswers ->
+            let
+                printSeed =
+                    model.printSeed
+
+                ( seed1, facts ) =
+                    getManyFacts 20 ( printSeed, [] )
+            in
+            ( { model
+                | isHidden = False
+                , mode = ShowManyAnswers
+                , printSeed = printSeed
+                , randomSeed = Just seed1
+                , facts = facts
+              }
+            , Cmd.none
+            )
+
+        PrintQuiz ->
+            let
+                printSeed =
+                    justOrDefault model.randomSeed (Random.initialSeed 0)
+
+                ( seed1, facts ) =
+                    getManyFacts 20 ( printSeed, [] )
+            in
+            ( { model
+                | isHidden = True
+                , facts = facts
+                , mode = ShowManyQuestions
+                , randomSeed = Just seed1
+                , printSeed = printSeed
+                , started = True
+              }
+            , Cmd.none
+            )
+
         Roll ->
             let
                 ( seed1, facts ) =
-                    getFacts model.seed
+                    getSeed model |> getFacts
             in
-                ( { model
-                    | facts =
-                        if model.difficulty == Easy then
-                            List.take 3 facts
-                        else
-                            facts
-                    , isHidden = True
-                    , seed = seed1
-                  }
-                , Cmd.none
-                )
+            ( { model
+                | facts =
+                    if model.difficulty == Easy then
+                        List.take 3 facts
+
+                    else
+                        facts
+                , isHidden = True
+                , randomSeed = Just seed1
+              }
+            , Cmd.none
+            )
 
         FirstRoll newFace ->
             let
                 ( seed, facts ) =
-                    getFacts (Random.initialSeed newFace)
-
-                -- seed
+                    Random.initialSeed newFace |> getFacts
             in
-                ( { model
-                    | sort = newFace
-                    , facts =
-                        if model.difficulty == Easy then
-                            List.take 3 facts
-                        else
-                            facts
-                    , isHidden = True
-                    , seed = seed
-                  }
-                , Cmd.none
-                )
+            ( { model
+                | sort = newFace
+                , facts =
+                    if model.difficulty == Easy then
+                        List.take 3 facts
+
+                    else
+                        facts
+                , isHidden = True
+                , mode = PlayGame
+                , randomSeed = Just seed
+              }
+            , Cmd.none
+            )
 
         Reveal ->
             ( { model
@@ -157,6 +219,7 @@ update msg model =
                 | difficulty =
                     if model.difficulty == Easy then
                         Hard
+
                     else
                         Easy
               }
@@ -164,7 +227,11 @@ update msg model =
             )
 
         CloseWelcomeScreen ->
-            ( model, Task.perform StartApp Time.now )
+            ( { model
+                | mode = StartGame
+              }
+            , Task.perform StartApp Time.now
+            )
 
         StartApp time ->
             ( { model
@@ -173,6 +240,7 @@ update msg model =
               }
             , Cmd.none
             )
+
 
 fullYearOfData =
     Array.fromList
