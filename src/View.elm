@@ -47,7 +47,7 @@ view model =
                 WelcomeScreen ->
                     viewWelcome model
     in
-    { title = "Elm App Template"
+    { title = "What Year Was It?"
     , body = [ b ]
     }
 
