@@ -1,16 +1,17 @@
-module View exposing (view, viewDatum, viewStuff, viewWelcome)
+module View exposing (view)
 
 import Browser exposing (Document)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
 import Model exposing (..)
-import Random exposing (Generator, Seed, int, map, maxInt, minInt, step)
 import String exposing (fromInt)
 import Time exposing (posixToMillis)
 import Update exposing (getSeed, justOrDefault)
 
 
+{-| used for a printable version of the quiz
+-}
 printDatum : Int -> Bool -> Datum -> List (Html Msg)
 printDatum matchYear isHidden ( category, year, event ) =
     [ p []
@@ -32,7 +33,7 @@ view model =
         b =
             case model.mode of
                 PlayGame ->
-                    viewStuff model
+                    viewGame model
 
                 ShowManyAnswers ->
                     viewMany model
@@ -41,7 +42,7 @@ view model =
                     viewMany model
 
                 StartGame ->
-                    viewStuff model
+                    viewGame model
 
                 WelcomeScreen ->
                     viewWelcome model
@@ -51,37 +52,36 @@ view model =
     }
 
 
-viewWelcome : Model -> Html Msg
-viewWelcome model =
-    div []
-        [ p [] [ h1 [] [ text "Welcome!" ] ]
-        , button [ onClick CloseWelcomeScreen ] [ text "Ok" ]
-        ]
-
-
-viewMany : Model -> Html Msg
-viewMany model =
+{-| show one item in the quize
+-}
+viewDatum : Int -> Bool -> Datum -> List (Html Msg)
+viewDatum matchYear isHidden ( category, year, event ) =
     let
-        ( c, matchYear, e ) =
-            justOrDefault (List.head model.facts) ( NoCategory, 0, "This never should happen!" )
+        color =
+            if matchYear == year && not isHidden then
+                [ style "background-color" "Bisque" ]
+
+            else
+                []
     in
-    div
-        [ style "font-size" "10"
-        , style "top" "50px"
-        , style "left" "20px"
+    [ p [] []
+    , h2 []
+        [ text
+            (if isHidden then
+                "----"
+
+             else
+                fromInt year
+            )
         ]
-        ([ button [ onClick PrintQuiz ] [ text "More" ]
-         , button [ onClick PrintAnswers ] [ text "Show Years" ]
-         , p [] [ text "Which two events happened in the same year?" ]
-         ]
-            ++ List.concatMap
-                (printDatum matchYear model.isHidden)
-                model.facts
-        )
+    , h1 color
+        [ text (" " ++ event)
+        ]
+    ]
 
 
-viewStuff : Model -> Html Msg
-viewStuff model =
+viewGame : Model -> Html Msg
+viewGame model =
     let
         ( c, matchYear, e ) =
             justOrDefault (List.head model.facts) ( NoCategory, 0, "This never should happen!" )
@@ -94,7 +94,7 @@ viewStuff model =
         ]
         (if model.started then
             [ h1 [ style "font-size" "300%" ] [ text "Which two events happened in the same year?" ]
-            , button [ onClick Roll, disabled model.isHidden ] [ text "Roll" ]
+            , button [ onClick Roll, disabled model.isHidden ] [ text "Next" ]
             , button [ onClick Reveal, disabled (not model.isHidden) ] [ text "Show Years" ]
             , button [ onClick ToggleDifficulty ]
                 [ text
@@ -117,27 +117,32 @@ viewStuff model =
         )
 
 
-viewDatum : Int -> Bool -> Datum -> List (Html Msg)
-viewDatum matchYear isHidden ( category, year, event ) =
+{-| used for a printable version of the quiz
+-}
+viewMany : Model -> Html Msg
+viewMany model =
     let
-        color =
-            if matchYear == year && not isHidden then
-                [ style "background-color" "Bisque" ]
-
-            else
-                []
+        ( c, matchYear, e ) =
+            justOrDefault (List.head model.facts) ( NoCategory, 0, "This never should happen!" )
     in
-    [ p [] []
-    , h2 []
-        [ text
-            (if isHidden then
-                "----"
+    div
+        [ style "font-size" "10"
+        , style "top" "50px"
+        , style "left" "20px"
+        ]
+        ([ button [ onClick PrintQuiz ] [ text "More" ]
+         , button [ onClick PrintAnswers ] [ text "Show Years" ]
+         , p [] [ text "Which two events happened in the same year?" ]
+         ]
+            ++ List.concatMap
+                (printDatum matchYear model.isHidden)
+                model.facts
+        )
 
-             else
-                fromInt year
-            )
+
+viewWelcome : Model -> Html Msg
+viewWelcome model =
+    div []
+        [ p [] [ h1 [] [ text "Welcome!" ] ]
+        , button [ onClick CloseWelcomeScreen ] [ text "Ok" ]
         ]
-    , h1 color
-        [ text (" " ++ Debug.log "event" event)
-        ]
-    ]
