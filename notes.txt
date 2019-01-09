@@ -1,0 +1,35 @@
+stack exec jupyter — notebook
+	▪	1929 – Alexander Fleming: Penicillin, the first beta-lactam antibiotic
+The first semiconductor
+The first hand held calculator
+The first Macintosh computer was released
+The IBM PC was introduced
+The Apple II was introduced.
+The birth control pill was introduced.
+	▪	1924 – Edwin Hubble: the discovery that the Milky Way is just one of many galaxies
+	▪	1925 – Erwin Schrödinger: Schrödinger equation (Quantum mechanics)
+	▪	1927 – Werner Heisenberg: Uncertainty principle (Quantum mechanics)
+	▪	1927 – Georges Lemaître: Theory of the Big Bang
+	▪	2016 - The LIGO team detected gravitational waves from a black hole merger.
+1957 - The World’s First Artificial Satellite was Sputnik.
+1961:
+First Human in Space was Yuri Gagarin
+1962:
+First American in Earth Orbit was John Glenn.
+1969:
+First Human Landing on the Moon-Neil Armstrong and Buzz Aldrin
+1975:
+Apollo-Soyuz Test Project: U.S.-USSR joint mission. Apollo 18 and Soyuz 19 docked.
+1990:
+Hubble Space Telescope launched.
+2001:
+The first Space Tourist was Dennis Tito.
+2004:
+SpaceShipOne was the first manned private spaceflight. Mike Melvill the pilot was the first private astronaut in space.
+Curiosity rover
+Voyager 1
+Cassini
+Huygens
+Viking 1
+Challenger accident
+
